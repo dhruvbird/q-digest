@@ -31,4 +31,7 @@ int main() {
   std::cerr << "70th percentile is: " << digest.percentile(0.7) << "\n";
   std::cerr << "2nd percentile is: " << digest.percentile(0.02) << "\n";
 
+  qdigest::QDigest digest2(K);
+  digest2.fromString(digest.toString());
+
 }

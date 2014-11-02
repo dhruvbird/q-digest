@@ -1,10 +1,20 @@
 #if !defined QDIGEST_H
 #define QDIGEST_H
 
+/**
+ * Based on the Q-Digest algorithm documented in
+ * http://www.cs.virginia.edu/~son/cs851/papers/ucsb.sensys04.pdf
+ *
+ * Builds a Q-Digest with a compression factor 'K' (parameter to the
+ * constructor of the QDigest class).
+ *
+ */
+
 #include <iostream>
 #include <vector>
 #include <memory>
 #include <cstddef>
+#include <sstream>
 #include <assert.h>
 
 // #define DEBUGERR(X)
@@ -49,6 +59,13 @@ namespace qdigest {
       this->parent = nullptr;
     }
   };
+
+  std::ostream&
+    operator<<(std::ostream &out, QDigestNode const &n) {
+    out << "[" << n.lb << ".." << n.ub << "], count -> "
+        << n.count;
+    return out;
+  }
 
   class QDigest {
     // A QDigest can NOT be copied
@@ -106,7 +123,7 @@ namespace qdigest {
       if (!n) return;
       printTree(out, n->left);
       printTree(out, n->right);
-      out << "[" << n->lb << ".." << n->ub << "] --> " << n->count << "\n";
+      out << *n << "\n";
     }
 
     void expandTree(size_t ub) {
@@ -194,6 +211,15 @@ namespace qdigest {
       return val;
     }
 
+    void preorder_toString(QDigestNode *n, std::ostream &out) const {
+      if (!n) return;
+      if (n->count > 0) {
+        out << n->lb << " " << n->ub << " " << n->count << "\n";
+      }
+      preorder_toString(n->left, out);
+      preorder_toString(n->right, out);
+    }
+
   public:
     explicit QDigest(size_t _k, size_t ub = 1)
       : root(new QDigestNode(0, ub)),
@@ -220,6 +246,43 @@ namespace qdigest {
       return postorder_by_rank(this->root.get(),
                                curr_rank,
                                req_rank);
+    }
+
+    /**
+     * Serialized format consists of newline separated entries which
+     * are tripples of the form: (LB, UB, COUNT)
+     *
+     * That means that we have a node which has COUNT elements which
+     * have values in the range [LB..UB]. Only non-empty ranges will
+     * be serialized (i.e. the serialized tree will be sparse). Also,
+     * the ranges will be serialized in pre-order tree traversal so
+     * that re-construction is easy.
+     *
+     */
+    std::string toString() const {
+      std::ostringstream sout;
+      auto r = this->root.get();
+      sout << N << " " << K << " " << r->lb << " " << r->ub << "\n";
+      preorder_toString(this->root.get(), sout);
+      return sout.str();
+    }
+
+    void fromString(std::string const &ser) {
+      std::istringstream sin(ser);
+      std::vector<QDigestNode> nodes;
+
+      int _n, _k, _lb, _ub;
+      sin >> _n >> _k >> _lb >> _ub;
+
+      while (true) {
+        size_t lb, ub, count;
+        sin >> lb >> ub >> count;
+        if (!sin) break;
+        QDigestNode n(lb, ub);
+        n.count = count;
+        DEBUGERR("Read QDigestNode: " << n << "\n");
+        nodes.push_back(n);
+      }
     }
 
     void printTree(std::ostream &out) const {
