@@ -7,25 +7,25 @@ int main() {
 
   digest.insert(10, 1);
 
-  digest.printTree(std::cerr);
+  std::cerr << digest << std::endl;
 
   digest.insert(51, 2);
 
-  digest.printTree(std::cerr);
+  std::cerr << digest << std::endl;
 
   digest.insert(52, 40);
   digest.insert(54, 20);
 
-  digest.printTree(std::cerr);
+  std::cerr << digest << std::endl;
 
   digest.insert(7, 2);
 
-  digest.printTree(std::cerr);
+  std::cerr << digest << std::endl;
 
   digest.insert(9, 2);
   digest.insert(21, 10);
 
-  digest.printTree(std::cerr);
+  std::cerr << digest << std::endl;
 
   std::cerr << "50th percentile is: " << digest.percentile(0.5) << "\n";
   std::cerr << "70th percentile is: " << digest.percentile(0.7) << "\n";
@@ -34,6 +34,5 @@ int main() {
   qdigest::QDigest digest2(K);
   digest2.fromString(digest.toString());
 
-  digest2.printTree(std::cerr);
-
+  std::cerr << digest << std::endl;
 }

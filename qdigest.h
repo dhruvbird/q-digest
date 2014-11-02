@@ -74,6 +74,10 @@ namespace qdigest {
     size_t N, K;
     size_t num_inserts;
 
+    /**
+     * Returns the aggregated count for a node and its siblings.
+     *
+     */
     size_t node_and_sibbling_count(QDigestNode *n) {
       size_t ret = n->count;
       if (n->left) { ret += n->left->count; }
@@ -81,8 +85,16 @@ namespace qdigest {
       return ret;
     }
 
+    /**
+     * A tree node which has a count of 0 can be deleted only if it
+     * has no children.
+     *
+     * Returns 'true' or 'false' depending on whether it deleted the
+     * node 'n' from the tree.
+     *
+     */
     bool delete_node_if_needed(QDigestNode *n, int level, int l_max) {
-      if (n->count == 0 && ((level == l_max) || (!n->left && !n->right))) {
+      if (n->count == 0 && (!n->left && !n->right)) {
         if (n->parent->left == n) {
           n->parent->left = nullptr;
         } else {
@@ -95,6 +107,13 @@ namespace qdigest {
       return false;
     }
 
+    /**
+     * Perform compaction. Specifically, ensure that no node is too
+     * small. i.e. apart from the root node, try to see if we can
+     * compress counts from a set of 3 nodes (i.e. a node, its parent
+     * and its sibling) and promote them to the parent node.
+     *
+     */
     void compact(QDigestNode *n, int level, int l_max, size_t nDivk) {
       if (!n) return;
       DEBUGERR("compact [" << n->lb << ", " << n->ub << "] "
@@ -126,6 +145,11 @@ namespace qdigest {
       out << *n << "\n";
     }
 
+    /**
+     * Expand the range of the tree to include numbers in the range
+     * [0..ub).
+     *
+     */
     void expandTree(size_t ub) {
       DEBUGERR("expandTree(" << ub << ")\n");
       assert((ub & (-ub)) == ub); // ub should be a power of 2
@@ -161,6 +185,16 @@ namespace qdigest {
       this->swap(tmp);
     }
 
+    /**
+     * Insert the equivalent of the values present in node 'n' into
+     * the current tree. This will either create new nodes alon the
+     * way and then create the final node or will update the count in
+     * the destination node if that node is already present in the
+     * tree. No compaction is attempted after the new node is inserted
+     * since this function is assumed to be called by the
+     * deserialization routine.
+     *
+     */
     void _insert_node(QDigestNode *n) {
       DEBUGERR("_insert_node (" << *n << ")\n");
       auto r = this->root.get();
@@ -199,6 +233,16 @@ namespace qdigest {
       DEBUGERR("(curr, n): (" << *curr << ", " << *n << ")\n");
     }
 
+    /**
+     * Bump up the count for 'key' by 'count'.
+     *
+     * If 'try_compact' is 'true' then attempt compaction if
+     * applicable. We don't compact when we want to build a tree which
+     * has a specific shape since we assume that certain nodes will be
+     * present at specific positions (for example when called by
+     * expandTree().
+     *
+     */
     void _insert(size_t key, unsigned int count, bool try_compact) {
       if (key > this->root->ub) {
         expandTree(1 << log2Ceil(key));
@@ -241,6 +285,12 @@ namespace qdigest {
       }
     }
 
+    /**
+     * Perform a post-order traversal of the tree and fetch the
+     * element at rank 'req_rank' starting from the smallest element
+     * in the structure.
+     *
+     */
     size_t postorder_by_rank(QDigestNode *n,
                              size_t &curr_rank,
                              size_t req_rank) const {
@@ -255,6 +305,12 @@ namespace qdigest {
       return val;
     }
 
+    /**
+     * Perform a pre-prder traversal of the tree and serialize all the
+     * nodes with a non-zero count. Separates each node with a newline
+     * (\n).
+     *
+     */
     void preorder_toString(QDigestNode *n, std::ostream &out) const {
       if (!n) return;
       if (n->count > 0) {
@@ -283,6 +339,13 @@ namespace qdigest {
       this->_insert(key, count, try_compact);
     }
 
+    /**
+     * Returns the approximate 100p'th percentile element in the
+     * structure. i.e. passing in 0.7 will return the 70th percentile
+     * element (which is the 70th percentile element starting from the
+     * smallest element).
+     *
+     */
     size_t percentile(double p) const {
       // p is in the range [0..1]
       size_t curr_rank = 0;
@@ -311,6 +374,12 @@ namespace qdigest {
       return sout.str();
     }
 
+    /**
+     * Deserialize the tree from the serialized version in the string
+     * 'ser'. The serialized version is obtained by calling
+     * toString().
+     *
+     */
     void fromString(std::string const &ser) {
       std::istringstream sin(ser);
       int _n, _k, _lb, _ub;
@@ -331,11 +400,18 @@ namespace qdigest {
     }
 
     void printTree(std::ostream &out) const {
-      out << "num_nodes: " << num_nodes << ", (N, K): ("
+      out << "[TREE] num_nodes: " << num_nodes << ", (N, K): ("
           << N << ", " << K << ")\n";
       this->printTree(out, this->root.get());
     }
   };
+
+  std::ostream&
+    operator<<(std::ostream &out, QDigest const &digest) {
+    digest.printTree(out);
+    return out;
+  }
+
 } // namespace qdigest
 
 #endif // QDIGEST_H
