@@ -131,6 +131,12 @@ namespace qdigest {
       assert((ub & (-ub)) == ub); // ub should be a power of 2
       --ub;
       QDigest tmp(this->K, ub);
+
+      if (this->N == 0) {
+        this->swap(tmp);
+        return;
+      }
+
       const bool try_compact = false;
       tmp._insert(this->root->ub, 1, try_compact);
 
@@ -142,7 +148,7 @@ namespace qdigest {
       QDigestNode *par = n->parent;
       int to_remove = 0;
       while (n) {
-        DEBUGERR("n (lb, ub): (" << n->lb << ", " << n->ub << ")\n");
+        DEBUGERR("node --> (lb, ub): (" << n->lb << ", " << n->ub << ")\n");
         n = n->right; ++to_remove;
       }
       par->left = this->root.release();
@@ -153,6 +159,44 @@ namespace qdigest {
       tmp.N = this->N;
 
       this->swap(tmp);
+    }
+
+    void _insert_node(QDigestNode *n) {
+      DEBUGERR("_insert_node (" << *n << ")\n");
+      auto r = this->root.get();
+      assert(n->lb >= r->lb);
+      assert(n->ub <= r->ub);
+
+      QDigestNode *prev = this->root.get();
+      QDigestNode *curr = prev;
+      while (curr->lb != n->lb || n->ub != curr->ub) {
+        size_t mid = curr->lb + (curr->ub - curr->lb) / 2;
+        DEBUGERR("mid: " << mid << "\n");
+        prev = curr;
+        if (n->ub <= mid) {
+          // Go left
+          if (!prev->left) {
+            prev->left = new QDigestNode(curr->lb, mid);
+            prev->left->parent = prev;
+            ++this->num_nodes;
+          }
+          curr = prev->left;
+        } else {
+          // Go right
+          assert(mid + 1 <= curr->ub);
+          if (!prev->right) {
+            prev->right = new QDigestNode(mid + 1, curr->ub);
+            prev->right->parent = prev;
+            ++this->num_nodes;
+          }
+          curr = prev->right;
+        }
+      } // while()
+      assert(curr->lb == n->lb);
+
+      // curr should get the contents of 'n'
+      curr->count += n->count;
+      DEBUGERR("(curr, n): (" << *curr << ", " << *n << ")\n");
     }
 
     void _insert(size_t key, unsigned int count, bool try_compact) {
@@ -269,10 +313,11 @@ namespace qdigest {
 
     void fromString(std::string const &ser) {
       std::istringstream sin(ser);
-      std::vector<QDigestNode> nodes;
-
       int _n, _k, _lb, _ub;
       sin >> _n >> _k >> _lb >> _ub;
+      this->N = _n;
+      this->K = _k;
+      this->root.reset(new QDigestNode(_lb, _ub));
 
       while (true) {
         size_t lb, ub, count;
@@ -281,7 +326,7 @@ namespace qdigest {
         QDigestNode n(lb, ub);
         n.count = count;
         DEBUGERR("Read QDigestNode: " << n << "\n");
-        nodes.push_back(n);
+        this->_insert_node(&n);
       }
     }
 

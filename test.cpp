@@ -34,4 +34,6 @@ int main() {
   qdigest::QDigest digest2(K);
   digest2.fromString(digest.toString());
 
+  digest2.printTree(std::cerr);
+
 }
