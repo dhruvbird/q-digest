@@ -6,7 +6,8 @@
  * http://www.cs.virginia.edu/~son/cs851/papers/ucsb.sensys04.pdf
  *
  * Builds a Q-Digest with a compression factor 'K' (parameter to the
- * constructor of the QDigest class).
+ * constructor of the QDigest class). Higher values of 'K' result in
+ * lesser compression, but more accuracy.
  *
  */
 
@@ -17,8 +18,11 @@
 #include <sstream>
 #include <assert.h>
 
-// #define DEBUGERR(X)
+#if defined DODEBUG
 #define DEBUGERR(X) std::cerr << X
+#else
+#define DEBUGERR(X)
+#endif
 
 #if !defined(nullptr)
 const                        // this is a const object...
@@ -152,6 +156,7 @@ namespace qdigest {
      */
     void expandTree(size_t ub) {
       DEBUGERR("expandTree(" << ub << ")\n");
+      assert(ub - 1 > this->root->ub);
       assert((ub & (-ub)) == ub); // ub should be a power of 2
       --ub;
       QDigest tmp(this->K, ub);
@@ -175,6 +180,7 @@ namespace qdigest {
         DEBUGERR("node --> (lb, ub): (" << n->lb << ", " << n->ub << ")\n");
         n = n->right; ++to_remove;
       }
+      par->left = (QDigestNode*)0x1;
       par->left = this->root.release();
       par->left->parent = par;
       DEBUGERR("to_remove: " << to_remove << "\n");
@@ -245,7 +251,11 @@ namespace qdigest {
      */
     void _insert(size_t key, unsigned int count, bool try_compact) {
       if (key > this->root->ub) {
-        expandTree(1 << log2Ceil(key));
+        size_t new_ub_plus_one = 1 << log2Ceil(key);
+        if (this->root->ub + 1 == new_ub_plus_one) {
+          new_ub_plus_one *= 2;
+        }
+        expandTree(new_ub_plus_one);
       }
       size_t lb = 0;
       size_t ub = this->root->ub;
@@ -278,7 +288,7 @@ namespace qdigest {
       curr->count += count;
       this->N += count;
       if (try_compact && (this->num_nodes >= K * 6)) {
-        const size_t nDivk = (N / K) + (N % K ? 1 : 0);
+        const size_t nDivk = (N / K); // + (N % K ? 1 : 0);
         const int l_max = log2Ceil(this->root->ub + 1);
         DEBUGERR("nDivk: " << nDivk << ", l_max: " << l_max << "\n");
         this->compact(this->root.get(), 0, l_max, nDivk);
@@ -337,6 +347,18 @@ namespace qdigest {
     void insert(size_t key, unsigned int count) {
       const bool try_compact = true;
       this->_insert(key, count, try_compact);
+    }
+
+    size_t size() const {
+      return this->N;
+    }
+
+    bool empty() const {
+      return this->size() == 0;
+    }
+
+    double compression_ratio() const {
+      return double(num_nodes) / (double)N;
     }
 
     /**
