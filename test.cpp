@@ -16,19 +16,21 @@ void test_poisson_distribution(int n, int k, int seed) {
   std::vector<int> v;
   int number = 1;
   int repeat = 1;
+  bool flipped = false;
   for (; v.size() != n; ++number) {
     for (int i = 0; i < repeat && v.size() != n; ++i) {
       v.push_back(number);
     }
     // std::cerr << "number: " << number << ", repeat: " << repeat << "\n";
-    if (v.size() < n/2) {
-      repeat *= 2;
-    } else if (v.size() == n/2) {
-      // do nothing
+    // std::cerr << v.size() << "\n";
+    if (v.size() <= n/2) {
+      if (!flipped) repeat += 3;
     } else {
-      repeat /= 2;
+      if (!flipped) repeat += 3;
+      flipped = true;
+      repeat -= 3;
     }
-    if (!repeat) repeat = 2;
+    if (repeat < 1) repeat = 2;
   }
 
   auto w = v;
@@ -104,12 +106,11 @@ void test_random_distribution(int n, int k, int seed) {
 int main() {
   const int K = 100;
   int seed = 377;
-  int N = 20000;
+  int N = 65535;
 
   test_random_distribution(N, K, seed);
   std::cerr << std::endl;
   test_geometric_distribution(N, K, seed);
   std::cerr << std::endl;
-  N = 65535;
   test_poisson_distribution(N, K, seed);
 }
