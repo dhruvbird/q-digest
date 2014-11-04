@@ -16,6 +16,7 @@
 #include <memory>
 #include <cstddef>
 #include <sstream>
+#include <queue>
 #include <assert.h>
 
 #if defined DODEBUG
@@ -169,6 +170,12 @@ namespace qdigest {
       const bool try_compact = false;
       tmp._insert(this->root->ub, 1, try_compact);
 
+      // Intuitively, we keep going down the left child till we find
+      // that no left child exists. This is the point where we
+      // branched off to the right, and we need to trim the tree below
+      // this node and replace this node with the root node of the
+      // original tree.
+
       QDigestNode *n = tmp.root.get();
       while (n->ub != this->root->ub) {
         DEBUGERR("UB: " << ub << std::endl);
@@ -193,7 +200,7 @@ namespace qdigest {
 
     /**
      * Insert the equivalent of the values present in node 'n' into
-     * the current tree. This will either create new nodes alon the
+     * the current tree. This will either create new nodes along the
      * way and then create the final node or will update the count in
      * the destination node if that node is already present in the
      * tree. No compaction is attempted after the new node is inserted
@@ -201,7 +208,7 @@ namespace qdigest {
      * deserialization routine.
      *
      */
-    void _insert_node(QDigestNode *n) {
+    void _insert_node(const QDigestNode *n) {
       DEBUGERR("_insert_node (" << *n << ")\n");
       auto r = this->root.get();
       assert(n->lb >= r->lb);
@@ -287,7 +294,13 @@ namespace qdigest {
       } // while()
       curr->count += count;
       this->N += count;
-      if (try_compact && (this->num_nodes >= K * 6)) {
+      if (try_compact) {
+        compact_if_needed();
+      }
+    }
+
+    void compact_if_needed() {
+      if (this->num_nodes >= K * 6) {
         const size_t nDivk = (N / K); // + (N % K ? 1 : 0);
         const int l_max = log2Ceil(this->root->ub + 1);
         DEBUGERR("nDivk: " << nDivk << ", l_max: " << l_max << "\n");
@@ -336,6 +349,10 @@ namespace qdigest {
       num_nodes(1),
       N(0), K(_k)
     { }
+
+    QDigest(QDigest &&rhs) {
+      this->swap(rhs);
+    }
 
     void swap(QDigest &other) {
       std::swap(this->root, other.root);
@@ -419,6 +436,30 @@ namespace qdigest {
         DEBUGERR("Read QDigestNode: " << n << "\n");
         this->_insert_node(&n);
       }
+    }
+
+    void merge(QDigest const &rhs) {
+      const size_t max_k = std::max(this->K, rhs.K);
+      const size_t max_ub = std::max(this->root->ub, rhs.root->ub);
+      QDigest tmp(max_k, max_ub);
+
+      std::queue<const QDigestNode*> nodesq;
+      nodesq.push(this->root.get());
+      nodesq.push(rhs.root.get());
+      while (!nodesq.empty()) {
+        auto n = nodesq.front();
+        nodesq.pop();
+        if (n->left) { nodesq.push(n->left); }
+        if (n->right) { nodesq.push(n->right); }
+        tmp._insert_node(n);
+      }
+      tmp.compact_if_needed();
+      this->swap(tmp);
+    }
+
+    QDigest& operator+=(QDigest const &rhs) {
+      this->merge(rhs);
+      return *this;
     }
 
     void printTree(std::ostream &out) const {
