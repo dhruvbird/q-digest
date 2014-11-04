@@ -243,6 +243,7 @@ namespace qdigest {
 
       // curr should get the contents of 'n'
       curr->count += n->count;
+      this->N += n->count;
       DEBUGERR("(curr, n): (" << *curr << ", " << *n << ")\n");
     }
 
@@ -423,7 +424,6 @@ namespace qdigest {
       std::istringstream sin(ser);
       int _n, _k, _lb, _ub;
       sin >> _n >> _k >> _lb >> _ub;
-      this->N = _n;
       this->K = _k;
       this->root.reset(new QDigestNode(_lb, _ub));
 

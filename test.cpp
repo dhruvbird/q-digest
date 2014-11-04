@@ -71,7 +71,7 @@ void test_geometric_distribution(int n, int k, int seed) {
     digest.insert(w[i], 1);
   }
 
-  std::cerr << "# nodes: " << digest.size() << "\n"
+  std::cerr << "# elements: " << digest.size() << "\n"
             << "Compression Ratio: " << digest.compression_ratio() << "\n";
 
   compare_percentiles(0.01, v, digest);
@@ -93,13 +93,40 @@ void test_random_distribution(int n, int k, int seed) {
     v.push_back(number);
     digest.insert(number, 1);
   }
-  std::cerr << "# nodes: " << digest.size() << "\n"
+  std::cerr << "# elements: " << digest.size() << "\n"
             << "Compression Ratio: " << digest.compression_ratio() << "\n";
 
   std::sort(v.begin(), v.end());
 
   for (double d = 0.05; d < 1.0; d += 0.05) {
     compare_percentiles(d, v, digest);
+  }
+}
+
+void test_merge(int n, int k, int seed) {
+  std::cerr << "<< test_merge >>\n";
+  srand(seed);
+  qdigest::QDigest d1(k), d2(k);
+  std::vector<int> v;
+
+  for (int i = 0; i < n * 2; ++i) {
+    auto number = rand() % n;
+    v.push_back(number);
+    (i < n ? d1 : d2).insert(number, 1);
+  }
+  std::cerr << "[d1] # elements: " << d1.size() << "\n"
+            << "[d1] Compression Ratio: " << d1.compression_ratio() << "\n";
+  std::cerr << "[d2] # elements: " << d1.size() << "\n"
+            << "[d2] Compression Ratio: " << d1.compression_ratio() << "\n";
+
+  d1 += d2;
+  std::cerr << "[combined] # elements: " << d1.size() << "\n"
+            << "[combined] Compression Ratio: " << d1.compression_ratio() << "\n";
+
+  std::sort(v.begin(), v.end());
+
+  for (double d = 0.05; d < 1.0; d += 0.05) {
+    compare_percentiles(d, v, d1);
   }
 }
 
@@ -113,4 +140,6 @@ int main() {
   test_geometric_distribution(N, K, seed);
   std::cerr << std::endl;
   test_poisson_distribution(N, K, seed);
+  std::cerr << std::endl;
+  test_merge(N, K, seed);
 }
