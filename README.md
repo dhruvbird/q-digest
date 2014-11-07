@@ -43,3 +43,14 @@ namespace qdigest {
   std::ostream& operator<<(std::ostream &out, QDigest const &digest);
 }
 ```
+
+You can not directly copy a Q-Digest into another, since copying a Q-Digest is an expensive operation and involves copying/cloning all the internal nodes. However, you can do the following to make a copy if you wish:
+```C++
+qdigest::QDigest old(100, 10);
+old.insert(1, 3);
+old.insert(4, 2);
+
+qdigest::QDigest curr(100);
+// Since 'curr' started out empty, 'curr' is now a copy of 'old'
+curr += old;
+```
